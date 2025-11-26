@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. CUSTOM CSS (BUTTON TEXT FIX) ---
+# --- 2. CUSTOM CSS (HEADER VISIBILITY FIX) ---
 st.markdown("""
 <style>
     /* 1. BACKGROUND */
@@ -23,14 +23,25 @@ st.markdown("""
         background-attachment: fixed;
     }
     
-    /* 2. TEXT VISIBILITY (Force Dark Text) */
+    /* 2. *** FIXED HEADER VISIBILITY *** */
+    /* This puts a white glass bar behind the top menu buttons so you can see them */
+    header[data-testid="stHeader"] {
+        background-color: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255,255,255,0.5);
+    }
+    /* Force the text color of the top menu to be black */
+    header[data-testid="stHeader"] * {
+        color: #000000 !important;
+    }
+
+    /* 3. TEXT VISIBILITY (Force Dark Text) */
     h1, h2, h3, h4, p, li, span, div, label {
         color: #0f172a !important;
         text-shadow: none !important;
     }
     
-    /* 3. BUTTON FIX (THE CRITICAL PART) */
-    /* Target ALL buttons (Scan, Export, Download) */
+    /* 4. BUTTON FIX */
     .stButton > button {
         background-color: #0f172a !important; /* Dark Navy Background */
         color: #ffffff !important;             /* Force WHITE Text */
@@ -38,28 +49,21 @@ st.markdown("""
         border-radius: 8px;
         font-weight: bold;
     }
-    
-    /* Force inner text (p tags) inside buttons to be white */
-    .stButton > button p {
-        color: #ffffff !important; 
-    }
+    .stButton > button p { color: #ffffff !important; }
 
-    /* Hover Effect */
     .stButton > button:hover {
         background-color: #1e293b !important;
-        border-color: #00C9FF !important;
-        color: #ffffff !important;
         transform: scale(1.02);
     }
 
-    /* 4. SIDEBAR */
+    /* 5. SIDEBAR */
     [data-testid="stSidebar"] {
         background-color: rgba(255, 255, 255, 0.9) !important;
         border-right: 1px solid rgba(255,255,255,0.5);
         backdrop-filter: blur(10px);
     }
 
-    /* 5. CARDS */
+    /* 6. CARDS */
     div[data-testid="stMetric"], .stTabs [data-baseweb="tab-panel"] {
         background-color: rgba(255, 255, 255, 0.75);
         border-radius: 15px;
@@ -69,14 +73,14 @@ st.markdown("""
         backdrop-filter: blur(10px);
     }
     
-    /* 6. INPUT BOXES */
+    /* 7. INPUT BOXES */
     input[type="text"], input[type="password"] {
         color: #000000 !important;
         background-color: #ffffff !important;
         border: 1px solid #ccc;
     }
 
-    /* 7. TABS */
+    /* 8. TABS */
     .stTabs [data-baseweb="tab"] {
         background-color: rgba(255,255,255,0.5);
         border-radius: 5px;
