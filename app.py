@@ -5,45 +5,88 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
 from fpdf import FPDF
-import random
 
-# --- PAGE CONFIGURATION ---
+# --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Leak Auditor Pro",
+    page_title="CyberSentinel Pro",
     page_icon="🛡️",
-    layout="centered"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# --- BACKEND LOGIC ---
+# --- 2. CUSTOM CSS (THE BEAUTIFUL PART) ---
+st.markdown("""
+<style>
+    /* THE BACKGROUND GRADIENT */
+    .stApp {
+        background: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
+        background-attachment: fixed;
+    }
+    
+    /* DASHBOARD TITLE */
+    h1 {
+        color: #2c3e50;
+        text-align: center;
+        font-family: 'Helvetica', sans-serif;
+        font-weight: 800;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* METRIC CARDS (Glass Effect) */
+    div[data-testid="stMetric"] {
+        background-color: rgba(255, 255, 255, 0.6);
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid rgba(255,255,255, 0.5);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        backdrop-filter: blur(10px);
+        text-align: center;
+    }
+    
+    /* BUTTON STYLING */
+    .stButton>button {
+        width: 100%;
+        border-radius: 50px;
+        height: 3em;
+        background: linear-gradient(90deg, #FF4B4B 0%, #FF9068 100%);
+        color: white;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 4px 15px rgba(255, 75, 75, 0.4);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 75, 75, 0.6);
+    }
 
+    /* TABS Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: rgba(255,255,255,0.5);
+        border-radius: 10px;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #fff;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 3. BACKEND LOGIC ---
 def get_mock_breaches():
-    """Fallback Simulation Data (Used if Real API fails)"""
     return [
-        {
-            "Name": "LinkedIn",
-            "Domain": "linkedin.com",
-            "BreachDate": "2016-05-17",
-            "DataClasses": ["Email addresses", "Passwords", "Job titles"],
-            "Description": "Massive networking site breach exposing 164M accounts."
-        },
-        {
-            "Name": "Adobe",
-            "Domain": "adobe.com",
-            "BreachDate": "2013-10-04",
-            "DataClasses": ["Email addresses", "Password hints", "Usernames"],
-            "Description": "Adobe creative cloud user database compromise."
-        },
-        {
-            "Name": "Zomato",
-            "Domain": "zomato.com",
-            "BreachDate": "2017-05-18",
-            "DataClasses": ["Email addresses", "Passwords"],
-            "Description": "Food delivery platform breach affecting 17 million users."
-        }
+        {"Name": "LinkedIn", "BreachDate": "2016-05-17", "DataClasses": ["Email", "Passwords", "Job titles"], "Description": "164 Million accounts exposed in massive professional network hack."},
+        {"Name": "Adobe", "BreachDate": "2013-10-04", "DataClasses": ["Email", "Hints", "Usernames"], "Description": "153 Million accounts exposed affecting Creative Cloud users."},
+        {"Name": "Zomato", "BreachDate": "2017-05-18", "DataClasses": ["Email", "Passwords"], "Description": "17 Million user records leaked from food delivery giant."},
+        {"Name": "Canva", "BreachDate": "2019-05-24", "DataClasses": ["Email", "Names", "Locations"], "Description": "Graphic design platform database compromised."}
     ]
 
 def get_real_breaches(email):
-    """Tries to fetch REAL data from LeakCheck Public API."""
     url = f"https://leakcheck.io/api/public?check={email}"
     try:
         response = requests.get(url, timeout=5)
@@ -53,140 +96,168 @@ def get_real_breaches(email):
             for source in data.get('sources'):
                 name = source.get('name') if isinstance(source, dict) else source
                 real_breaches.append({
-                    "Name": name,
-                    "BreachDate": "2021-01-01", # Default date
-                    "DataClasses": ["Email", "Password (Assumed)"],
-                    "Description": "Confirmed entry in public leak database."
+                    "Name": name, "BreachDate": "2021-01-01", 
+                    "DataClasses": ["Email", "Password"], "Description": "Public Database Leak"
                 })
             return real_breaches
         return []
     except:
-        return None # Connection Error
+        return None
 
 def check_password_pwned(password):
-    """Checks the Official HIBP API for passwords (Real & Free)."""
     sha1pass = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
     prefix, suffix = sha1pass[:5], sha1pass[5:]
-    url = f"https://api.pwnedpasswords.com/range/{prefix}"
     try:
-        res = requests.get(url, timeout=5)
+        res = requests.get(f"https://api.pwnedpasswords.com/range/{prefix}", timeout=5)
         if res.status_code == 200:
             for line in res.text.splitlines():
                 h, count = line.split(':')
-                if h == suffix:
-                    return int(count)
-    except:
-        return -1
+                if h == suffix: return int(count)
+    except: return -1
     return 0
 
 def calculate_risk(breaches):
     score = 0
-    weights = {'Passwords': 30, 'Email addresses': 10, 'Phone numbers': 50}
-    for breach in breaches:
-        classes = breach.get('DataClasses', ['Email', 'Password'])
-        for dtype in classes:
+    weights = {'Passwords': 30, 'Email': 10, 'Phone': 50}
+    for b in breaches:
+        for dtype in b.get('DataClasses', []):
             score += weights.get(dtype, 15)
     return min(score, 100)
 
-def generate_pdf(email, score, breaches, leak_count):
+def generate_pdf(email, score, breaches):
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, 'CyberSentinel Audit Report', 0, 1, 'C')
     pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Security Audit Report for: {email}", ln=1, align='C')
     pdf.ln(10)
-    pdf.set_font("Arial", 'B', size=14)
-    pdf.cell(200, 10, txt=f"Risk Score: {score}/100", ln=1)
-    
-    if leak_count > 0:
-        pdf.set_text_color(255, 0, 0)
-        pdf.cell(200, 10, txt=f"ALERT: Test password found in {leak_count} breaches.", ln=1)
-    else:
-        pdf.set_text_color(0, 128, 0)
-        pdf.cell(200, 10, txt="PASS: Test password is safe.", ln=1)
-    
-    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, f"Target: {email}", 0, 1)
+    pdf.cell(0, 10, f"Risk Score: {score}/100", 0, 1)
     pdf.ln(10)
-    pdf.cell(200, 10, txt="Breach History:", ln=1)
+    pdf.cell(0, 10, "Breach History:", 0, 1)
     pdf.set_font("Arial", size=10)
     for b in breaches:
-        # Sanitize text for PDF
-        name = str(b['Name']).encode('latin-1', 'replace').decode('latin-1')
-        pdf.cell(0, 8, txt=f"- {name}", ln=1)
-        
+        pdf.cell(0, 8, f"- {b['Name']}", 0, 1)
     pdf.output("Risk_Report.pdf")
 
-# --- FRONTEND UI ---
-st.title("🛡️ Identity Leak Auditor")
-st.markdown("Check if your data has been exposed in Dark Web breaches.")
+# --- 4. THE UI LAYOUT ---
+
+# Header
+st.markdown("<h1>🛡️ CyberSentinel <br><span style='font-size: 20px; color: #555;'>Advanced Identity Leak Auditor</span></h1>", unsafe_allow_html=True)
 st.divider()
 
 # Sidebar
 with st.sidebar:
-    st.header("Input Data")
-    email_input = st.text_input("Enter Email", "demo@test.com")
-    pass_input = st.text_input("Check Password (Optional)", type="password")
-    if st.button("Run Audit", type="primary"):
+    st.markdown("### ⚙️ Control Panel")
+    email_input = st.text_input("Target Email Address", "demo@test.com")
+    pass_input = st.text_input("Password Check (Optional)", type="password")
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🚀 INITIATE SCAN"):
         st.session_state['run'] = True
-
-if st.session_state.get('run'):
-    st.subheader(f"Results for: {email_input}")
     
-    # 1. GET DATA
-    with st.spinner("Scanning databases..."):
+    st.markdown("---")
+    st.caption("🔒 Zero-Knowledge Architecture. \nYour password is never sent fully.")
+
+# Main Dashboard
+if st.session_state.get('run'):
+    
+    # FETCH DATA
+    with st.spinner("🕵️ Scouring Dark Web Databases..."):
         breaches = get_real_breaches(email_input)
-        
-        # LOGIC: If real API fails or finds nothing, AND it's the demo email, switch to Mock
-        if (not breaches) and (email_input == "demo@test.com"):
+        is_sim = False
+        if not breaches and email_input == "demo@test.com":
             breaches = get_mock_breaches()
-            st.info("ℹ️ Running in **Simulation Mode** (Demo Data).")
-        elif breaches:
-            st.success(f"✅ Found {len(breaches)} real breaches.")
-        else:
-            st.success("✅ No breaches found in public databases.")
-            breaches = []
-
-    if breaches:
-        # 2. RISK SCORE
-        score = calculate_risk(breaches)
-        c1, c2 = st.columns(2)
-        c1.metric("Breaches", len(breaches))
-        c2.metric("Risk Score", f"{score}/100")
+            is_sim = True
         
-        if score > 50: st.error("Status: HIGH RISK")
-        else: st.warning("Status: MODERATE RISK")
+        risk_score = calculate_risk(breaches) if breaches else 0
 
-        # 3. TIMELINE GRAPH
-        st.markdown("### 📅 Breach Timeline")
-        dates = []
-        names = []
-        for b in breaches:
-            try:
-                d = datetime.strptime(b.get('BreachDate', '2021-01-01'), "%Y-%m-%d")
-            except:
-                d = datetime(2021, 1, 1)
-            dates.append(d)
-            names.append(b['Name'])
-            
-        fig, ax = plt.subplots(figsize=(8, 3))
-        ax.stem(dates, [1]*len(dates))
-        ax.get_yaxis().set_visible(False)
-        st.pyplot(fig)
-
-    # 4. PASSWORD CHECK
-    if pass_input:
-        st.divider()
-        st.subheader("Password Analysis")
-        count = check_password_pwned(pass_input)
-        if count > 0:
-            st.error(f"❌ DANGER: This password appears in {count:,} breaches!")
-        else:
-            st.success("✅ Secure: This password is safe.")
+    # ALERT BANNER
+    if risk_score > 50:
+        st.error(f"🚨 CRITICAL THREAT DETECTED: Risk Score {risk_score}/100")
+    elif risk_score > 0:
+        st.warning(f"⚠️ MODERATE RISK: Risk Score {risk_score}/100")
     else:
-        count = 0
+        st.success("✅ SYSTEM SECURE: No data breaches found.")
 
-    # 5. REPORT
+    if is_sim:
+        st.caption("ℹ️ Running in Simulation Mode for Demonstration")
+
+    # TABS
+    tab1, tab2, tab3 = st.tabs(["📊 Live Dashboard", "🕸️ Attack Map", "🔑 Password Lab"])
+
+    with tab1:
+        # METRICS ROW
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Breaches", len(breaches) if breaches else 0)
+        col2.metric("Identity Risk Score", f"{risk_score}/100", delta="High Risk" if risk_score > 50 else "Safe")
+        col3.metric("Data Source", "Simulation" if is_sim else "Live API")
+
+        st.markdown("### 📜 Forensic Log")
+        if breaches:
+            for b in breaches:
+                with st.expander(f"🔴 {b['Name']} ({b.get('BreachDate', 'N/A')})"):
+                    st.write(f"**Description:** {b.get('Description', 'No details available.')}")
+                    st.write(f"**Compromised Data:** {', '.join(b.get('DataClasses', []))}")
+        else:
+            st.info("No breaches to display.")
+
+    with tab2:
+        st.markdown("### 📅 Timeline of Compromise")
+        if breaches:
+            dates = [datetime.strptime(b.get('BreachDate', '2021-01-01'), "%Y-%m-%d") for b in breaches]
+            names = [b['Name'] for b in breaches]
+            
+            fig, ax = plt.subplots(figsize=(10, 4))
+            fig.patch.set_alpha(0) # Transparent chart background
+            ax.patch.set_alpha(0)
+            
+            # Stylish Stem Plot
+            markerline, stemline, baseline = ax.stem(dates, [1]*len(dates))
+            plt.setp(markerline, marker='D', markersize=8, markeredgecolor="#FF4B4B", markerfacecolor="white")
+            plt.setp(stemline, color='#2c3e50', linestyle='--')
+            
+            ax.get_yaxis().set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['bottom'].set_color('#2c3e50')
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+            
+            for d, name in zip(dates, names):
+                ax.annotate(name, xy=(d, 1.1), xytext=(0, 5), textcoords="offset points", ha='center', fontweight='bold', color="#2c3e50")
+            
+            st.pyplot(fig)
+        else:
+            st.info("No timeline data available.")
+
+    with tab3:
+        st.markdown("### 🔐 Password Strength & Exposure Analysis")
+        if pass_input:
+            leaks = check_password_pwned(pass_input)
+            colA, colB = st.columns([1, 2])
+            with colA:
+                if leaks > 0:
+                    st.markdown("# ⚠️")
+                else:
+                    st.markdown("# ✅")
+            with colB:
+                if leaks > 0:
+                    st.error(f"This password has been exposed **{leaks:,}** times in global data breaches.")
+                    st.markdown("**Recommendation:** CHANGE IMMEDIATELY.")
+                elif leaks == 0:
+                    st.success("This password has NOT been found in known leaks.")
+                else:
+                    st.warning("Could not connect to analysis server.")
+        else:
+            st.info("Enter a password in the sidebar to test its exposure.")
+
+    # REPORT GENERATION
     st.divider()
-    if st.button("Download PDF Report"):
-        generate_pdf(email_input, score if breaches else 0, breaches, count)
+    if st.button("📄 Export Forensic PDF Report"):
+        generate_pdf(email_input, risk_score, breaches if breaches else [])
         with open("Risk_Report.pdf", "rb") as f:
-            st.download_button("📥 Click to Save PDF", f, "Risk_Report.pdf")
+            st.download_button("📥 Download PDF", f, "Risk_Report.pdf")
+
+else:
+    # LANDING PAGE STATE
+    st.info("👈 Enter an email in the sidebar and click 'INITIATE SCAN' to begin.")
