@@ -14,56 +14,93 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. CUSTOM CSS (Visual Styling) ---
+# --- 2. CUSTOM CSS (BUTTON TEXT FIX) ---
 st.markdown("""
 <style>
-    /* Background Gradient */
+    /* 1. BACKGROUND */
     .stApp {
-        background: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
+        background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%);
         background-attachment: fixed;
     }
-    h1 {
-        color: #2c3e50;
-        text-align: center;
-        font-family: 'Helvetica', sans-serif;
-        font-weight: 800;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    
+    /* 2. TEXT VISIBILITY (Force Dark Text) */
+    h1, h2, h3, h4, p, li, span, div, label {
+        color: #0f172a !important;
+        text-shadow: none !important;
     }
-    div[data-testid="stMetric"] {
-        background-color: rgba(255, 255, 255, 0.6);
-        border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    
+    /* 3. BUTTON FIX (THE CRITICAL PART) */
+    /* Target ALL buttons (Scan, Export, Download) */
+    .stButton > button {
+        background-color: #0f172a !important; /* Dark Navy Background */
+        color: #ffffff !important;             /* Force WHITE Text */
+        border: 1px solid white !important;
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    
+    /* Force inner text (p tags) inside buttons to be white */
+    .stButton > button p {
+        color: #ffffff !important; 
+    }
+
+    /* Hover Effect */
+    .stButton > button:hover {
+        background-color: #1e293b !important;
+        border-color: #00C9FF !important;
+        color: #ffffff !important;
+        transform: scale(1.02);
+    }
+
+    /* 4. SIDEBAR */
+    [data-testid="stSidebar"] {
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        border-right: 1px solid rgba(255,255,255,0.5);
         backdrop-filter: blur(10px);
     }
-    .stButton>button {
-        width: 100%;
-        border-radius: 50px;
-        height: 3em;
-        background: linear-gradient(90deg, #FF4B4B 0%, #FF9068 100%);
-        color: white;
+
+    /* 5. CARDS */
+    div[data-testid="stMetric"], .stTabs [data-baseweb="tab-panel"] {
+        background-color: rgba(255, 255, 255, 0.75);
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid #ffffff;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        backdrop-filter: blur(10px);
+    }
+    
+    /* 6. INPUT BOXES */
+    input[type="text"], input[type="password"] {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        border: 1px solid #ccc;
+    }
+
+    /* 7. TABS */
+    .stTabs [data-baseweb="tab"] {
+        background-color: rgba(255,255,255,0.5);
+        border-radius: 5px;
+        color: #0f172a !important;
         font-weight: bold;
-        border: none;
-        box-shadow: 0 4px 15px rgba(255, 75, 75, 0.4);
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #ffffff;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CREATIVE PDF GENERATOR (The New Feature) ---
+# --- 3. CREATIVE PDF GENERATOR ---
 class CreativePDF(FPDF):
     def header(self):
-        # Draw a Dark Blue Banner at the top
-        self.set_fill_color(44, 62, 80)  # Dark Blue
-        self.rect(0, 0, 210, 40, 'F')    # Rectangle covering top
-        
-        # Add Title Text
+        self.set_fill_color(15, 23, 42) # Dark Navy Header
+        self.rect(0, 0, 210, 40, 'F')
         self.set_font('Arial', 'B', 24)
-        self.set_text_color(255, 255, 255) # White text
+        self.set_text_color(255, 255, 255)
         self.cell(0, 20, 'CyberSentinel', 0, 1, 'C')
-        
         self.set_font('Arial', '', 12)
         self.cell(0, 5, 'OFFICIAL SECURITY AUDIT REPORT', 0, 1, 'C')
-        self.ln(20) # Add spacing after header
+        self.ln(20)
 
     def footer(self):
         self.set_y(-15)
@@ -75,72 +112,59 @@ def generate_creative_pdf(email, score, breaches):
     pdf = CreativePDF()
     pdf.add_page()
     
-    # SECTION 1: TARGET INFO
+    # Target Info
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, f"AUDIT TARGET: {email}", 0, 1, 'L')
-    pdf.cell(0, 10, f"GENERATED ON: {datetime.now().strftime('%Y-%m-%d %H:%M')}", 0, 1, 'L')
-    pdf.line(10, 65, 200, 65) # Draw a separator line
+    pdf.cell(0, 10, f"DATE: {datetime.now().strftime('%Y-%m-%d')}", 0, 1, 'L')
+    pdf.line(10, 65, 200, 65)
     
-    # SECTION 2: RISK SCORE CARD
+    # Score Box
     pdf.ln(10)
-    # Draw a colored box for the score
-    pdf.set_fill_color(240, 240, 240) # Light Grey background
+    pdf.set_fill_color(240, 240, 250)
     pdf.rect(10, 75, 190, 40, 'F') 
-    
     pdf.set_y(80)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, "IDENTITY RISK SCORE", 0, 1, 'C')
-    
     pdf.set_font("Arial", 'B', 30)
     if score > 50:
-        pdf.set_text_color(192, 57, 43) # Red for danger
+        pdf.set_text_color(220, 20, 60)
         status = "CRITICAL RISK"
     else:
-        pdf.set_text_color(39, 174, 96) # Green for safe
+        pdf.set_text_color(0, 128, 0)
         status = "SECURE"
-        
     pdf.cell(0, 15, f"{score}/100 ({status})", 0, 1, 'C')
-    pdf.set_text_color(0, 0, 0) # Reset color
+    pdf.set_text_color(0, 0, 0)
 
-    # SECTION 3: BREACH TABLE
+    # Table
     pdf.ln(20)
     pdf.set_font("Arial", 'B', 14)
-    # Table Header with Blue Background
-    pdf.set_fill_color(44, 62, 80)
+    pdf.set_fill_color(15, 23, 42)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 10, " FORENSIC EVIDENCE LOG", 1, 1, 'L', fill=True)
-    
-    # Table Rows
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 10)
     
-    fill = False # For Zebra striping
+    fill = False
     if breaches:
         for b in breaches:
-            # Alternate row colors
-            if fill:
-                pdf.set_fill_color(230, 230, 230) # Light Grey
-            else:
-                pdf.set_fill_color(255, 255, 255) # White
-                
-            # Clean up text to prevent PDF errors
+            if fill: pdf.set_fill_color(230, 240, 255)
+            else: pdf.set_fill_color(255, 255, 255)
+            
             name = str(b['Name'])
             date = str(b.get('BreachDate', 'N/A'))
-            desc = str(b.get('Description', 'No details'))[:70] + "..." # Truncate long text
+            desc = str(b.get('Description', 'No details'))[:70] + "..."
             
-            # Draw row
             pdf.cell(40, 10, f" {name}", 1, 0, 'L', fill=fill)
             pdf.cell(30, 10, f" {date}", 1, 0, 'L', fill=fill)
             pdf.cell(0, 10, f" {desc}", 1, 1, 'L', fill=fill)
-            
-            fill = not fill # Toggle color for next row
+            fill = not fill
     else:
         pdf.cell(0, 10, " No breaches found.", 1, 1, 'L')
 
     pdf.output("Risk_Report.pdf")
 
-# --- 4. BACKEND LOGIC (Same as before) ---
+# --- 4. BACKEND LOGIC ---
 def get_mock_breaches():
     return [
         {"Name": "LinkedIn", "BreachDate": "2016-05-17", "DataClasses": ["Email", "Passwords", "Job titles"], "Description": "164 Million accounts exposed in massive professional network hack."},
@@ -188,7 +212,7 @@ def calculate_risk(breaches):
     return min(score, 100)
 
 # --- 5. THE UI LAYOUT ---
-st.markdown("<h1>🛡️ CyberSentinel <br><span style='font-size: 20px; color: #555;'>Advanced Identity Leak Auditor</span></h1>", unsafe_allow_html=True)
+st.markdown("<h1>🛡️ CyberSentinel <br><span style='font-size: 20px;'>Advanced Identity Leak Auditor</span></h1>", unsafe_allow_html=True)
 st.divider()
 
 with st.sidebar:
@@ -243,17 +267,20 @@ if st.session_state.get('run'):
             fig, ax = plt.subplots(figsize=(10, 4))
             fig.patch.set_alpha(0)
             ax.patch.set_alpha(0)
+            # Dark Blue Chart
             markerline, stemline, baseline = ax.stem(dates, [1]*len(dates))
-            plt.setp(markerline, marker='D', markersize=8, markeredgecolor="#FF4B4B", markerfacecolor="white")
-            plt.setp(stemline, color='#2c3e50', linestyle='--')
+            plt.setp(markerline, marker='D', markersize=8, markeredgecolor="#0f172a", markerfacecolor="white")
+            plt.setp(stemline, color='#0f172a', linestyle='--')
             ax.get_yaxis().set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_color('#2c3e50')
+            ax.spines['bottom'].set_color('#0f172a')
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+            # X Labels Black
+            ax.tick_params(axis='x', colors='#000')
             for d, name in zip(dates, names):
-                ax.annotate(name, xy=(d, 1.1), xytext=(0, 5), textcoords="offset points", ha='center', fontweight='bold', color="#2c3e50")
+                ax.annotate(name, xy=(d, 1.1), xytext=(0, 5), textcoords="offset points", ha='center', fontweight='bold', color="#0f172a")
             st.pyplot(fig)
         else: st.info("No timeline data available.")
 
@@ -268,7 +295,6 @@ if st.session_state.get('run'):
 
     st.divider()
     if st.button("📄 Export Forensic PDF Report"):
-        # CALLING THE NEW CREATIVE PDF FUNCTION
         generate_creative_pdf(email_input, risk_score, breaches if breaches else [])
         with open("Risk_Report.pdf", "rb") as f:
             st.download_button("📥 Download PDF", f, "Risk_Report.pdf")
