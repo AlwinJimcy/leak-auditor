@@ -8,6 +8,8 @@ from fpdf import FPDF
 import random
 import time
 import json
+import re
+from urllib.parse import urlparse
 
 # ==========================================
 # 1. CONFIGURATION & SETUP
@@ -19,9 +21,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- API KEYS (REPLACE THESE) ---
-GOOGLE_API_KEY = "AIzaSyDd6eC6KYprKwAAh-MtambAu7vw8GJfoIo"
-VIRUSTOTAL_API_KEY = "b323485c8e352c86d49c2a044182ad2a6fcae2a5495b88f12a7e8aea99733616"
+# --- API KEYS (REPLACE THESE WITH YOUR ACTUAL KEYS) ---
+GOOGLE_API_KEY = "YOUR_GOOGLE_SAFE_BROWSING_KEY"
+VIRUSTOTAL_API_KEY = "YOUR_VIRUSTOTAL_API_KEY"
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -173,7 +175,7 @@ def generate_creative_pdf(email, score, breaches):
     pdf.output("Risk_Report.pdf")
 
 # ==========================================
-# 3. MODULE 1: IDENTITY AUDITOR
+# 3. MODULE 1: IDENTITY AUDITOR LOGIC
 # ==========================================
 
 def estimate_date(site_name):
@@ -228,45 +230,65 @@ def check_password_pwned(password):
 
 def calculate_risk(breaches):
     score = 0
-    weights = {
-        'Passwords': 30, 
-        'Email': 10, 
-        'Phone': 50,
-        'Credit Card': 80,
-        'IP Address': 5
-    }
-    
     current_year = datetime.now().year
+    weights = {'Passwords': 30, 'Email': 10, 'Phone': 50, 'Credit Card': 80}
     
     for b in breaches:
-        # Get the breach year (default to 2020 if missing)
         breach_date_str = b.get('BreachDate', '2020-01-01')
-        try:
-            breach_year = int(breach_date_str.split('-')[0])
-        except:
-            breach_year = 2020
-            
-        # Calculate Time Decay Factor
-        # Breach 0 years ago = 1.0 multiplier (Full Risk)
-        # Breach 10 years ago = 0.1 multiplier (Low Risk)
+        try: breach_year = int(breach_date_str.split('-')[0])
+        except: breach_year = 2020
         age = max(1, current_year - breach_year)
-        decay_factor = 1.0 / (age ** 0.5) # Using square root for smoother decay
+        decay_factor = 1.0 / (age ** 0.5)
         
-        # Sum up weights for this specific breach
-        breach_score = 0
-        for dtype in b.get('DataClasses', []):
-            base_weight = weights.get(dtype, 15)
-            breach_score += base_weight
-            
-        # Add the time-adjusted score to total
+        breach_score = sum([weights.get(dtype, 15) for dtype in b.get('DataClasses', [])])
         score += (breach_score * decay_factor)
         
     return min(int(score), 100)
 
 # ==========================================
-# 4. MODULE 2: HYBRID URL SCANNER
+# 4. MODULE 2: HYBRID URL SCANNER LOGIC
 # ==========================================
 
+# --- LAYER 0: LOCAL HEURISTICS (NOVELTY) ---
+def local_heuristics_engine(url):
+    """
+    Analyzes URL structure for phishing patterns without needing APIs.
+    This is the 'Zero-Day' detection layer.
+    """
+    flags = []
+    score = 0
+    
+    # 1. Check for IP Address Usage
+    ip_pattern = r"^(http|https)://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    if re.match(ip_pattern, url):
+        score += 40
+        flags.append("Raw IP Address used (High Risk)")
+
+    # 2. Check for '@' symbol (Obfuscation)
+    if "@" in url:
+        score += 30
+        flags.append("Obfuscated URL using '@' symbol")
+
+    # 3. Keyword Stuffing
+    suspicious_keywords = ['login', 'signin', 'verify', 'account', 'update', 'banking', 'secure']
+    parsed = urlparse(url)
+    url_path = parsed.path + parsed.query
+    found_keywords = [word for word in suspicious_keywords if word in url_path.lower()]
+    if found_keywords:
+        score += 20
+        flags.append(f"Suspicious keywords found: {', '.join(found_keywords)}")
+
+    # 4. Length Analysis
+    if len(url) > 75:
+        score += 10
+        flags.append("URL is abnormally long (>75 chars)")
+
+    if score >= 40:
+        return {"status": "suspicious", "score": score, "flags": flags}
+    else:
+        return {"status": "clean", "score": score, "flags": flags}
+
+# --- LAYER 1: GOOGLE SAFE BROWSING ---
 def check_google_safe_browsing(url):
     endpoint = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_API_KEY}"
     payload = {
@@ -287,6 +309,7 @@ def check_google_safe_browsing(url):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+# --- LAYER 2: VIRUSTOTAL ---
 def check_virustotal(url):
     headers = {"x-apikey": VIRUSTOTAL_API_KEY, "content-type": "application/x-www-form-urlencoded"}
     try:
@@ -321,7 +344,7 @@ def check_virustotal(url):
         return {"status": "error", "message": str(e)}
 
 # ==========================================
-# 5. MAIN APPLICATION
+# 5. MAIN APPLICATION UI
 # ==========================================
 
 st.sidebar.title("🛡️ CyberSentinel")
@@ -420,9 +443,10 @@ elif app_mode == "PhishGuard URL Scanner":
     st.divider()
 
     st.markdown("""
-    This scanner uses a **Hybrid Defense Layer**:
-    1.  **Fast Layer:** Checks Google Safe Browsing instantly.
-    2.  **Deep Layer:** If 'clean', performs deep analysis via VirusTotal (70+ engines).
+    This scanner uses a **Triple-Layer Defense**:
+    1.  **🧠 Heuristics Engine:** Zero-day analysis of URL structure.
+    2.  **🛡️ Fast Layer:** Google Safe Browsing Check.
+    3.  **🔬 Deep Layer:** VirusTotal Deep Scan (if needed).
     """)
     
     url_input = st.text_input("Enter Suspicious URL:", placeholder="http://example.com/login")
@@ -430,8 +454,21 @@ elif app_mode == "PhishGuard URL Scanner":
         if url_input:
             st.write("---")
             
-            # Layer 1
-            st.subheader("1. Fast Layer (Google Safe Browsing)")
+            # --- LAYER 0: LOCAL HEURISTICS (NOVELTY) ---
+            st.subheader("1. 🧠 Local Heuristics Engine (Zero-Day Detection)")
+            
+            heuristic_result = local_heuristics_engine(url_input)
+            
+            if heuristic_result["status"] == "suspicious":
+                st.warning(f"⚠️ Suspicious Patterns Detected (Risk Score: {heuristic_result['score']}/100)")
+                for flag in heuristic_result["flags"]:
+                    st.write(f"- {flag}")
+                st.info("Proceeding to database checks for confirmation...")
+            else:
+                st.success("✅ Heuristics: No obvious structural threats found.")
+
+            # --- LAYER 1: GOOGLE SAFE BROWSING ---
+            st.subheader("2. 🛡️ Global Database (Google)")
             fast_result = check_google_safe_browsing(url_input)
             
             if fast_result["status"] == "malicious":
@@ -442,8 +479,8 @@ elif app_mode == "PhishGuard URL Scanner":
             else:
                 st.success("✅ Google Safe Browsing: Clean")
                 
-                # Layer 2 (Only if Layer 1 is clean)
-                st.subheader("2. Deep Layer (VirusTotal)")
+                # --- LAYER 2: VIRUSTOTAL (Only if Layer 1 is clean) ---
+                st.subheader("3. 🔬 Deep Layer (VirusTotal)")
                 deep_result = check_virustotal(url_input)
                 
                 if deep_result["status"] == "malicious":
@@ -457,4 +494,3 @@ elif app_mode == "PhishGuard URL Scanner":
                     st.error(f"Error in deep scan: {deep_result.get('message')}")
         else:
             st.warning("Please enter a URL.")
-
