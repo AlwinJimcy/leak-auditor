@@ -228,17 +228,37 @@ def check_password_pwned(password):
 
 def calculate_risk(breaches):
     score = 0
+    weights = {
+        'Passwords': 30, 
+        'Email': 10, 
+        'Phone': 50,
+        'Credit Card': 80,
+        'IP Address': 5
+    }
+    
     current_year = datetime.now().year
-    weights = {'Passwords': 30, 'Email': 10, 'Phone': 50, 'Credit Card': 80}
     
     for b in breaches:
+        # Get the breach year (default to 2020 if missing)
         breach_date_str = b.get('BreachDate', '2020-01-01')
-        try: breach_year = int(breach_date_str.split('-')[0])
-        except: breach_year = 2020
+        try:
+            breach_year = int(breach_date_str.split('-')[0])
+        except:
+            breach_year = 2020
+            
+        # Calculate Time Decay Factor
+        # Breach 0 years ago = 1.0 multiplier (Full Risk)
+        # Breach 10 years ago = 0.1 multiplier (Low Risk)
         age = max(1, current_year - breach_year)
-        decay_factor = 1.0 / (age ** 0.5)
+        decay_factor = 1.0 / (age ** 0.5) # Using square root for smoother decay
         
-        breach_score = sum([weights.get(dtype, 15) for dtype in b.get('DataClasses', [])])
+        # Sum up weights for this specific breach
+        breach_score = 0
+        for dtype in b.get('DataClasses', []):
+            base_weight = weights.get(dtype, 15)
+            breach_score += base_weight
+            
+        # Add the time-adjusted score to total
         score += (breach_score * decay_factor)
         
     return min(int(score), 100)
@@ -437,3 +457,4 @@ elif app_mode == "PhishGuard URL Scanner":
                     st.error(f"Error in deep scan: {deep_result.get('message')}")
         else:
             st.warning("Please enter a URL.")
+
